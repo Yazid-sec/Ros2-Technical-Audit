@@ -1,0 +1,50 @@
+services:
+  # 1. Nœud Caméra
+  camera:
+    image: osrf/ros:foxy-desktop
+    container_name: ros2_camera
+    networks:
+      - ros2_isolated_net
+    ipc: shareable
+    environment:
+      - ROS_DOMAIN_ID=42
+      - PYTHONUNBUFFERED=1
+    # Exemple de commande de test (à remplacer par votre script/package)
+    command: ros2 run demo_nodes_cpp talker --ros-args --remap __node:=camera_node
+
+  # 2. Nœud Détection (IA / Traitement d'image)
+  detection:
+    image: osrf/ros:foxy-desktop
+    container_name: ros2_detection
+    networks:
+      - ros2_isolated_net
+    ipc: service:camera # Permet le partage de mémoire ultra-rapide pour les images de la caméra
+    environment:
+      - ROS_DOMAIN_ID=42
+      - PYTHONUNBUFFERED=1
+    command: ros2 run demo_nodes_py listener --ros-args --remap __node:=detection_node
+    depends_on:
+      - camera
+
+  # 3. Nœud Moteur (Contrôle / Actuateurs)
+  moteur:
+    image: osrf/ros:foxy-desktop
+    container_name: ros2_moteur
+    networks:
+      - ros2_isolated_net
+    ipc: shareable
+    environment:
+      - ROS_DOMAIN_ID=42
+      - PYTHONUNBUFFERED=1
+    command: ros2 run demo_nodes_cpp listener --ros-args --remap __node:=moteur_node
+    depends_on:
+      - detection
+
+networks:
+  ros2_isolated_net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true" # Autorise la communication entre conteneurs
+
+ # Utilisation de bash -c pour charger l'environnement ROS 2 au démarrage
+    entrypoint: ["/bin/bash", "-c", "source /opt/ros/foxy/setup.bash && ros2 run demo_nodes_cpp talker --ros-args --remap __node:=camera_node"]
